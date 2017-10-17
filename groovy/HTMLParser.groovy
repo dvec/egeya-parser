@@ -60,8 +60,8 @@ class HTMLParser {
     }
 
     private def perform(List<String> p, Element e) {
-        def (message, arg) = performBraces(p[0])
-        def (name, param) = performParam(message)
+        def (String message, Map<String, String> arg) = performBraces(p[0])
+        def (String name, String param) = performParam(message)
 
         ArrayList<String> toReturn = new ArrayList<>()
         for (c in e.children()) {
@@ -86,6 +86,6 @@ class HTMLParser {
     }
 
     ArrayList run(String command) {
-        return perform(command.split("/").toList(), body) ?: []
+        return (ArrayList) perform(command.split("/").toList(), body) ?: []
     }
 }
