@@ -2,10 +2,10 @@ import org.jsoup.Jsoup
 
 class HTMLGetter {
     class Post {
-        ArrayList<String> header
-        ArrayList<String> date
-        ArrayList<String> img
-        ArrayList<String> url
+        String header
+        String date
+        String img
+        String url
     }
 
     class Version {
@@ -51,7 +51,7 @@ class HTMLGetter {
         this.parser = new HTMLParser(body)
     }
 
-    Post perform() {
+    ArrayList<Post> perform() {
         int from = 0
         if (version != null) from = version
         for (int i = from; i < versions.size(); i++) {
@@ -69,9 +69,14 @@ class HTMLGetter {
                 }
             }
 
+
+            def posts = []
             if (header != [] || date != [] || img != [] || url != []) {
+                for (int j = 0; j < header.size(); j++) {
+                    posts << new Post(header: header[j], date: date[j], img: img[j], url: url[j])
+                }
                 version = i
-                return new Post(header: header, date: date, img: img, url: url)
+                return posts
             }
 
             if (version != null) return null

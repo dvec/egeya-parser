@@ -8,24 +8,24 @@ final TABLE_NAME = "posts"
 
 def sqlConfig = new XmlSlurper().parse(SQL_CONFIG_PATH.toFile())
 
-def sql = Sql.newInstance(sqlConfig.getProperty("url").toString(), sqlConfig.getProperty("user").toString(),
-        sqlConfig.getProperty("password").toString(), "org.postgresql.Driver")
-
-sql.execute(String.format("CREATE TABLE IF NOT EXISTS %s (date CHAR(64), header CHAR(64), img CHAR(64), url CHAR(64))", TABLE_NAME))
-
 def targets = new XmlSlurper().parse(TARGETS_PATH.toFile())
+
+// Create database: CREATE TABLE IF NOT EXISTS %s (date CHAR(64), header CHAR(64), img CHAR(64), url CHAR(64) unique)
+
 while (true) {
+    def sql = Sql.newInstance(sqlConfig.getProperty("url").toString(), sqlConfig.getProperty("user").toString(),
+            sqlConfig.getProperty("password").toString(), "org.postgresql.Driver")
+
     for (def url : targets.children()) {
         HTMLGetter getter = new HTMLGetter(url.toString())
         getter.loadHTML()
         def result = getter.perform()
-        long postCount = sql.rows(String.format("SELECT COUNT(*) FROM %s", TABLE_NAME)).first().getProperty("count")
-        if (postCount >= result.date.size()) continue
-        for (int i = 0; i < result.date.size(); i++) {
-            sql.execute(String.format("INSERT INTO %s VALUES ('%s', '%s', '%s', '%s')",
-                    TABLE_NAME, result.date[i], result.header[i], result.img[i], result.url[i]))
+        for (int i = 0; i < result.size(); i++) {
+            sql.execute(String.format(
+                    "INSERT INTO %s (date, header, img, url) VALUES ('%s', '%s', '%s', '%s') ON CONFLICT (url) DO NOTHING",
+                    TABLE_NAME, result[i].date, result[i].header, result[i].img, result[i].url, result[i]))
         }
     }
-    sleep(1000 * 60 * 60)
+    sql.close()
+    sleep(100)
 }
-sql.close()
