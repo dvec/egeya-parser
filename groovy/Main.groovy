@@ -10,7 +10,7 @@ def sqlConfig = new XmlSlurper().parse(SQL_CONFIG_PATH.toFile())
 
 def targets = new XmlSlurper().parse(TARGETS_PATH.toFile())
 
-// Create database: CREATE TABLE IF NOT EXISTS %s (date CHAR(64), header CHAR(64), img CHAR(64), url CHAR(64) unique)
+// Create database: CREATE TABLE %s (blog CHAR(64), date CHAR(64), header CHAR(64), img CHAR(64), url CHAR(64), uuid CHAR(128))
 
 while (true) {
     def sql = Sql.newInstance(sqlConfig.getProperty("url").toString(), sqlConfig.getProperty("user").toString(),
@@ -18,12 +18,12 @@ while (true) {
 
     for (def url : targets.children()) {
         HTMLGetter getter = new HTMLGetter(url.toString())
-        getter.loadHTML()
-        def result = getter.perform()
+
+        ArrayList result = getter.getNewPosts(sql, TABLE_NAME)
         for (int i = 0; i < result.size(); i++) {
             sql.execute(String.format(
-                    "INSERT INTO %s (date, header, img, url) VALUES ('%s', '%s', '%s', '%s') ON CONFLICT (url) DO NOTHING",
-                    TABLE_NAME, result[i].date, result[i].header, result[i].img, result[i].url, result[i]))
+                    "INSERT INTO %s VALUES ('%s', '%s', '%s', '%s', '%s', '%s')",
+                    TABLE_NAME, url, result[i].date, result[i].header, result[i].img, result[i].url, result[i].getUUID()))
         }
     }
     sql.close()

@@ -1,4 +1,7 @@
+import groovy.sql.Sql
+import org.jsoup.HttpStatusException
 import org.jsoup.Jsoup
+import org.jsoup.nodes.Element
 
 class HTMLGetter {
     class Post {
@@ -6,6 +9,10 @@ class HTMLGetter {
         String date
         String img
         String url
+
+        String getUUID() {
+            return url + "_" + date
+        }
     }
 
     class Version {
@@ -30,15 +37,11 @@ class HTMLGetter {
     ]
 
     private String url
-    private HTMLParser parser
-    private Integer version
+    private int version = -1
+    private int page = 1
 
     HTMLGetter(String url) {
         this.url = url
-    }
-
-    private static boolean isExternalUrl(String url) {
-        return url.charAt(0) != '/'
     }
 
     private String getHostUrl() {
@@ -46,34 +49,48 @@ class HTMLGetter {
         return uri.getProtocol() + "://" + uri.getHost()
     }
 
-    void loadHTML() {
-        def body = Jsoup.connect(url).get().body()
-        this.parser = new HTMLParser(body)
+    private static boolean isExternalUrl(String url) {
+        return url.charAt(0) != '/'
     }
 
-    ArrayList<Post> perform() {
-        int from = 0
-        if (version != null) from = version
-        for (int i = from; i < versions.size(); i++) {
-            def header = parser.run(versions[i].header)
-            def date = parser.run(versions[i].date)
-            def img = parser.run(versions[i].img)
-            def url = parser.run(versions[i].url)
+    private ArrayList<Post> nextPage() {
+        String url = this.url
+        if (page != 1) url += "page${page}"
+        page++
 
+        Element body
+        try {
+            body = Jsoup.connect(url).get().body()
+        } catch (HttpStatusException ignored) {
+            return null
+        }
+
+        HTMLParser parser = new HTMLParser(body)
+        int from = 0
+        if (version != -1) from = version
+        for (int i = from; i < versions.size(); i++) {
+            ArrayList header = parser.run(versions[i].header)
+            ArrayList date = parser.run(versions[i].date)
+            ArrayList img = parser.run(versions[i].img)
+            ArrayList postUrl = parser.run(versions[i].url)
+
+            if (img.size() == 0) return null
             for (int j = 0; j < img.size(); j++) {
                 if (img[j] != null && !isExternalUrl(img[j])) {
                     img[j] = getHostUrl() + img[j]
                 }
-                if (url[j] != null && !isExternalUrl(url[j])) {
-                    url[j] = getHostUrl() + url[j]
+                if (postUrl[j] != null && !isExternalUrl(postUrl[j])) {
+                    postUrl[j] = getHostUrl() + postUrl[j]
                 }
             }
 
 
-            def posts = []
-            if (header != [] || date != [] || img != [] || url != []) {
+            ArrayList posts = []
+            if (header != [] || date != [] || img != [] || postUrl != []) {
                 for (int j = 0; j < header.size(); j++) {
-                    posts << new Post(header: header[j], date: date[j], img: img[j], url: url[j])
+                    if (postUrl[j] != null) {
+                        posts << new Post(header: header[j], date: date[j], img: img[j], url: postUrl[j])
+                    }
                 }
                 version = i
                 return posts
@@ -82,5 +99,23 @@ class HTMLGetter {
             if (version != null) return null
         }
         return null
+    }
+
+    ArrayList<Post> getNewPosts(Sql sql, String table) {
+        ArrayList page
+        ArrayList<Post> posts = new ArrayList()
+        while (true) {
+            page = nextPage()
+            if (page == null) break
+            int i = 0
+            for (Post post: page) {
+                i++
+                if ((int) sql.rows(String.format("SELECT COUNT(*) FROM %s WHERE uuid = '%s'", table, post.getUUID()))
+                        .first().get("count") == 0) {
+                    posts.add(post)
+                } else break
+            }
+        }
+        return posts
     }
 }
