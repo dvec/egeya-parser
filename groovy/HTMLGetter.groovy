@@ -20,6 +20,7 @@ class HTMLGetter {
         String date
         String img
         String url
+        String pageUrl
     }
 
     private final versions = [
@@ -27,13 +28,14 @@ class HTMLGetter {
                     header: "main/div [class='container']/article/header/h2/a",
                     date: "main/div/article/header/p/time@datetime",
                     img: "main/div/article/section/figure/a/img@src",
-                    url: "main/div/article/header/h2/a@href"),
+                    url: "main/div/article/header/h2/a@href",
+                    pageUrl: "page%s"),
             new Version(
                     header: "div [class='common']/div [class='content']/div [id='e2-note-*']/article/h1/a/span",
                     date: "div [class='common']/div [class='content']/div [id='e2-note-*']/div [class='e2-note-tags]/span@title",
                     img: "div [class='common']/div [class='content']/div [id='e2-note-*']/article/div/div/div/div/img@src",
-                    url: "div [class='common']/div [class='content']/div [id='e2-note-*']/article/h1/a@href")
-
+                    url: "div [class='common']/div [class='content']/div [id='e2-note-*']/article/h1/a@href",
+                    pageUrl: "page%s")
     ]
 
     private String url
@@ -54,21 +56,21 @@ class HTMLGetter {
     }
 
     private ArrayList<Post> nextPage() {
-        String url = this.url
-        if (page != 1) url += "page${page}"
-        page++
-
-        Element body
-        try {
-            body = Jsoup.connect(url).get().body()
-        } catch (HttpStatusException ignored) {
-            return null
-        }
-
-        HTMLParser parser = new HTMLParser(body)
         int from = 0
         if (version != -1) from = version
         for (int i = from; i < versions.size(); i++) {
+            String url = this.url
+            if (page != 1) url += String.format(versions[i].pageUrl, page)
+
+            println url
+            Element body
+            try {
+                body = Jsoup.connect(url).get().body()
+            } catch (HttpStatusException ignored) {
+                return null
+            }
+            HTMLParser parser = new HTMLParser(body)
+
             ArrayList header = parser.run(versions[i].header)
             ArrayList date = parser.run(versions[i].date)
             ArrayList img = parser.run(versions[i].img)
@@ -93,6 +95,7 @@ class HTMLGetter {
                     }
                 }
                 version = i
+                page++
                 return posts
             }
 
